@@ -1,0 +1,1 @@
+console.log("Activity received:", req.body);
