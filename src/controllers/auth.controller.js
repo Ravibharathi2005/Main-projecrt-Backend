@@ -1,5 +1,9 @@
+const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const CompanyEmployee = require("../models/CompanyEmployee");
+
+const JWT_SECRET = process.env.JWT_SECRET || "default_jwt_secret";
+const JWT_EXPIRES_IN = "1h";
 
 // Register user
 const register = async (req, res) => {
@@ -33,7 +37,7 @@ const register = async (req, res) => {
     }
 
     // Determine role based on position
-    const role = employee.position === "CEO" ? "ADMIN" : "USER";
+    const role = ["CEO", "CTO"].includes(employee.position) ? "ADMIN" : "USER";
 
     // Create new user
     const newUser = new User({
@@ -60,9 +64,60 @@ const register = async (req, res) => {
   }
 };
 
-// Login (existing, but can be updated if needed)
+// Login using companyemployees master data
 const login = async (req, res) => {
-  // Existing login logic can be kept or updated
+  try {
+    const { employeeId, password } = req.body;
+
+    if (!employeeId || !password) {
+      return res.status(401).json({ message: "Login failed" });
+    }
+
+    const employee = await CompanyEmployee.findOne({ employeeId });
+    if (!employee) {
+      return res.status(401).json({
+        message: "Login failed",
+      });
+    }
+
+    const existingUser = await User.findOne({ employeeId });
+    if (!existingUser) {
+      return res.status(401).json({
+        message: "Login failed",
+      });
+    }
+
+    const validPassword = await existingUser.comparePassword(password);
+    if (!validPassword) {
+      return res.status(401).json({
+        message: "Login failed",
+      });
+    }
+
+    const role = ["CEO", "CTO"].includes(employee.position) ? "ADMIN" : "USER";
+
+    const token = jwt.sign({ employeeId: employee.employeeId, role }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
+
+    return res.json({
+      token,
+      employeeId: employee.employeeId,
+      role,
+      user: {
+        employeeId: employee.employeeId,
+        name: employee.name || employee.employeeName || employee.fullName || "Unknown",
+        role,
+        department: employee.department || employee.company || "General",
+        position: employee.position || employee.designation || employee.role || "Employee",
+      },
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({
+      message: "Internal server error",
+    });
+  }
 };
 
 module.exports = {
