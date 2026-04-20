@@ -15,14 +15,93 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  position: {
+    type: String,
+    default: "Employee",
+  },
+  department: {
+    type: String,
+    default: "General",
+  },
   role: {
     type: String,
-    enum: ["ADMIN", "USER"],
+    enum: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "HR",
+      "MANAGER",
+      "SECURITY_ANALYST",
+      "EMPLOYEE",
+    ],
     required: true,
   },
   password: {
     type: String,
     required: true,
+  },
+  // Trust & Risk Scoring Fields
+  trustScore: {
+    type: Number,
+    default: 100,
+    min: 0,
+    max: 100,
+  },
+  riskLevel: {
+    type: String,
+    enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+    default: "LOW",
+  },
+  lastLogin: {
+    type: Date,
+    default: null,
+  },
+  lastLoginTimestamp: {
+    type: Date,
+    default: null,
+  },
+  deviceHistory: [
+    {
+      deviceId: String,
+      deviceName: String,
+      lastUsed: Date,
+      isVerified: {
+        type: Boolean,
+        default: false,
+      },
+    },
+  ],
+  failedLoginAttempts: {
+    type: Number,
+    default: 0,
+  },
+  lastFailedLoginTime: {
+    type: Date,
+    default: null,
+  },
+  alerts: [
+    {
+      severity: {
+        type: String,
+        enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      },
+      message: String,
+      timestamp: {
+        type: Date,
+        default: Date.now,
+      },
+      resolved: {
+        type: Boolean,
+        default: false,
+      },
+    },
+  ],
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
   },
 });
 

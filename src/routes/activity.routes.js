@@ -20,14 +20,7 @@ router.post("/", async (req, res) => {
 
     await activity.save();
 
-    // Optional risk-flagging helpers
-    const lastMinuteCount = await ActivityLog.countDocuments({
-      employeeId,
-      time: { $gt: new Date(Date.now() - 60 * 1000) },
-    });
-
     let risk = "LOW";
-    if (lastMinuteCount > 8) risk = "HIGH";
     if (action.toLowerCase().includes("restricted") || action.toLowerCase().includes("attempt")) risk = "HIGH";
 
     console.log("Activity saved:", activity);
@@ -39,14 +32,40 @@ router.post("/", async (req, res) => {
 });
 
 router.get("/", async (req, res) => {
-  const { employeeId } = req.query;
+  const { employeeId, startDate, endDate, action, risk, page = 1, limit = 50 } = req.query;
 
   try {
     const query = {};
-    if (employeeId) query.employeeId = employeeId;
 
-    const activities = await ActivityLog.find(query).sort({ time: -1 }).limit(1000);
-    return res.json(activities);
+    if (employeeId) query.employeeId = employeeId;
+    if (action) query.action = { $regex: action, $options: "i" };
+    if (risk) query.risk = risk;
+
+    if (startDate || endDate) {
+      query.time = {};
+      if (startDate) query.time.$gte = new Date(startDate);
+      if (endDate) query.time.$lte = new Date(endDate);
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const activities = await ActivityLog.find(query)
+      .sort({ time: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate("employeeId", "name email");
+
+    const total = await ActivityLog.countDocuments(query);
+
+    return res.json({
+      activities,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    });
   } catch (error) {
     console.error("Cannot fetch activities", error);
     return res.status(500).json({ message: "Unable to fetch activities" });
