@@ -103,6 +103,15 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  // Advanced Biometrics
+  facialTemplate: {
+    type: String,
+    default: null,
+  },
+  isBiometricEnrolled: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // Hash password before saving

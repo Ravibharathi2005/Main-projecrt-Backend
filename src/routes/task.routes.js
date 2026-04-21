@@ -1,0 +1,12 @@
+const express = require("express");
+const router = express.Router();
+const taskController = require("../controllers/task.controller");
+const authMiddleware = require("../middlewares/auth.middleware");
+
+router.use(authMiddleware.verifyToken);
+
+router.get("/", taskController.getTasks);
+router.patch("/:taskId", taskController.updateTaskStatus);
+router.post("/seed", taskController.createSampleTasks);
+
+module.exports = router;

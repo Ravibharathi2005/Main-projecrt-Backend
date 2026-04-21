@@ -14,7 +14,8 @@ const app = express();
 
 // 🔹 Middlewares
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // 🔹 Test route
 app.get("/", (req, res) => {
@@ -23,10 +24,14 @@ app.get("/", (req, res) => {
 
 // 🔹 Routes
 app.use("/api/auth", require("./src/routes/auth.routes"));
+app.use("/api/user", require("./src/routes/user.routes"));
 app.use("/api/activity", require("./src/routes/activity.routes"));
 app.use("/api/alerts", require("./src/routes/alert.routes"));
 app.use("/api/dashboard", require("./src/routes/dashboard.routes"));
 app.use("/api/risk", require("./src/routes/risk.routes"));
+app.use("/api/attendance", require("./src/routes/attendance.routes"));
+app.use("/api/tasks", require("./src/routes/task.routes"));
+app.use("/api/salary", require("./src/routes/salary.routes"));
 
 // 🔹 Start server
 const PORT = process.env.PORT || 8080;

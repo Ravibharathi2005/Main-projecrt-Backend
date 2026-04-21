@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
+const authMiddleware = require("../middlewares/auth.middleware");
 
-router.get("/status", (req, res) => {
+router.get("/status", authMiddleware.verifyToken, (req, res) => {
   // 🔥 dummy logic (later AI add pannuvom)
   const score = Math.floor(Math.random() * 100);
 

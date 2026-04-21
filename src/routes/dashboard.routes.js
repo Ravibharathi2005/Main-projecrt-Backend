@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
+const authMiddleware = require("../middlewares/auth.middleware");
 
-router.get("/", (req, res) => {
+router.get("/", authMiddleware.verifyToken, (req, res) => {
   res.json({
     riskStatus: "Low Risk ✅",
     sessions: 1,
