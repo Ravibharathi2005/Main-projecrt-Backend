@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDB = require("./src/config/db");
+const startRiskResetScheduler = require("./src/services/scheduler.service.js");
 
 // 🔹 Load env
 dotenv.config();
@@ -34,6 +35,7 @@ app.use("/api/tasks", require("./src/routes/task.routes"));
 app.use("/api/salary", require("./src/routes/salary.routes"));
 
 // 🔹 Start server
+startRiskResetScheduler();
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {

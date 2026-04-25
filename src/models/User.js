@@ -51,6 +51,10 @@ const userSchema = new mongoose.Schema({
     enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
     default: "LOW",
   },
+  lastRiskReset: {
+    type: Date,
+    default: null,
+  },
   lastLogin: {
     type: Date,
     default: null,

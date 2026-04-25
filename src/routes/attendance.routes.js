@@ -2,8 +2,10 @@ const express = require("express");
 const router = express.Router();
 const attendanceController = require("../controllers/attendance.controller");
 const authMiddleware = require("../middlewares/auth.middleware");
+const { validateSecuritySync } = require("../middlewares/sync.middleware");
 
 router.use(authMiddleware.verifyToken);
+router.use(validateSecuritySync);
 
 router.get("/", attendanceController.getAttendance);
 router.post("/check-in", attendanceController.checkIn);

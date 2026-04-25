@@ -1,29 +1,37 @@
 const express = require("express");
 const router = express.Router();
-
-let alerts = [];
+const Alert = require("../models/Alert");
 
 // ➤ Generate alert
-router.post("/create", (req, res) => {
+router.post("/create", async (req, res) => {
   const { employeeId, message, level } = req.body;
 
-  const alert = {
-    employeeId,
-    message,
-    level, // LOW / MEDIUM / HIGH
-    time: new Date(),
-  };
+  try {
+    const alert = new Alert({
+      employeeId,
+      message,
+      severity: level || "LOW",
+    });
 
-  alerts.push(alert);
+    await alert.save();
+    console.log("🚨 ALERT Saved to DB:", alert);
 
-  console.log("🚨 ALERT:", alert);
-
-  res.json({ message: "Alert created" });
+    res.json({ success: true, message: "Alert created", data: alert });
+  } catch (error) {
+    console.error("Error creating alert:", error);
+    res.status(500).json({ success: false, message: "Failed to create alert" });
+  }
 });
 
 // ➤ Get all alerts
-router.get("/", (req, res) => {
-  res.json(alerts);
+router.get("/", async (req, res) => {
+  try {
+    const alerts = await Alert.find().sort({ timestamp: -1 });
+    res.json(alerts);
+  } catch (error) {
+    console.error("Error fetching alerts:", error);
+    res.status(500).json({ message: "Failed to fetch alerts" });
+  }
 });
 
 module.exports = router;

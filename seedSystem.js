@@ -5,6 +5,10 @@ const User = require("./src/models/User");
 const Task = require("./src/models/Task");
 const Attendance = require("./src/models/Attendance");
 const Salary = require("./src/models/Salary");
+const ActivityLog = require("./src/models/ActivityLog");
+const Alert = require("./src/models/Alert");
+const Session = require("./src/models/Session");
+const Role = require("./src/models/Role");
 const connectDB = require("./src/config/db");
 
 dotenv.config();
@@ -57,7 +61,11 @@ const seedSystem = async () => {
     await Task.deleteMany({});
     await Attendance.deleteMany({});
     await Salary.deleteMany({});
-    console.log("✅ All collections cleared for synchronization");
+    await ActivityLog.deleteMany({});
+    await Alert.deleteMany({});
+    await Session.deleteMany({});
+    await Role.deleteMany({});
+    console.log("✅ All collections cleared for synchronization (System Reset)");
 
     // 1. Seed Company Employees
     await CompanyEmployee.insertMany(employees);
@@ -107,6 +115,24 @@ const seedSystem = async () => {
     await Attendance.insertMany([
         { employeeId: emp1001.employeeId, date: "2026-04-20", checkIn: new Date("2026-04-20T08:30:00"), checkOut: new Date("2026-04-20T17:30:00"), status: "PRESENT", workHours: 9 }
     ]);
+
+    // 4. Seed Default Roles
+    const roles = [
+      { roleName: "SUPER_ADMIN", permissions: ["ALL"], description: "Full system access" },
+      { roleName: "ADMIN", permissions: ["USER_MANAGEMENT", "SYSTEM_CONFIG"], description: "Administrative access" },
+      { roleName: "SECURITY_ANALYST", permissions: ["VIEW_LOGS", "MANAGE_ALERTS"], description: "Security monitoring access" },
+      { roleName: "HR", permissions: ["EMPLOYEE_MANAGEMENT", "SALARY_MANAGEMENT"], description: "Human resources access" },
+      { roleName: "EMPLOYEE", permissions: ["VIEW_DASHBOARD", "MARK_ATTENDANCE"], description: "Standard employee access" }
+    ];
+    await Role.insertMany(roles);
+    console.log(`✅ ${roles.length} system roles initialized`);
+
+    // 5. Seed Sample Alerts for EMP1001
+    await Alert.insertMany([
+      { employeeId: "EMP1001", message: "Multiple invalid login attempts from new location", severity: "HIGH", status: "OPEN" },
+      { employeeId: "EMP1001", message: "Profile information updated: address", severity: "LOW", status: "RESOLVED" }
+    ]);
+    console.log("✅ Sample security alerts synchronized");
 
     console.log("✅ Historical demographics synchronized");
     console.log("\n--- SYSTEM READY ---");
