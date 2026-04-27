@@ -74,6 +74,44 @@ const register = async (req, res) => {
       });
     }
 
+    let facialTemplateStr = null;
+    if (biometricData) {
+      try {
+        const response = await fetch("http://127.0.0.1:5050/api/face/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: biometricData })
+        });
+        
+        const rawText = await response.text();
+        let aiData;
+        try {
+          aiData = JSON.parse(rawText);
+        } catch (parseError) {
+          console.error("AI Service returned non-JSON:", rawText.substring(0, 100));
+          return res.status(500).json({
+            success: false,
+            message: "Biometric AI service returned invalid response"
+          });
+        }
+        
+        if (!response.ok || !aiData.success) {
+          return res.status(400).json({
+            success: false,
+            message: aiData.message || "Failed to extract face biometrics"
+          });
+        }
+        
+        facialTemplateStr = JSON.stringify(aiData.embedding);
+      } catch (err) {
+        console.error("AI Service Error:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Biometric AI service is offline"
+        });
+      }
+    }
+
     // Use Smart Role Engine for role assignment
     const role = roleEngine.assignRole(employee.position);
 
@@ -86,8 +124,8 @@ const register = async (req, res) => {
       department: employee.department || "General",
       role,
       password,
-      facialTemplate: biometricData,
-      isBiometricEnrolled: !!biometricData,
+      facialTemplate: facialTemplateStr,
+      isBiometricEnrolled: !!facialTemplateStr,
       trustScore: riskEngine.INITIAL_SCORE,
       riskLevel: "LOW",
     });
@@ -278,60 +316,54 @@ const verifyBiometric = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // PROBABILISTIC DISTRIBUTED SIGNATURE MATCHING
-    // Analyzes the structural distribution of data to allow for natural biometric variance
-    const calculateDistributedSignature = (str) => {
-      if (!str || str.length < 5000) return null;
-      
-      const segments = 20; // Structural Density Segments
-      const signature = [];
-      const segmentSize = Math.floor(str.length / segments);
-      const anchorChars = ['A', 'Q', 'g', 'w', '0', '9', '+', '/']; // Base64 anchor points
-
-      for (let i = 0; i < segments; i++) {
-        const start = i * segmentSize;
-        const segment = str.substring(start, start + segmentSize);
-        const distribution = {};
-        
-        // Calculate density of anchor points in this segment
-        anchorChars.forEach(char => {
-          const count = (segment.split(char).length - 1);
-          distribution[char] = count / segmentSize;
-        });
-        signature.push(distribution);
-      }
-      return signature;
-    };
-
-    const storedSig = calculateDistributedSignature(user.facialTemplate);
-    const liveSig = calculateDistributedSignature(biometricData);
-    
-    if (!storedSig || !liveSig) {
-       return res.status(400).json({ success: false, message: "Invalid biometric data quality" });
+    if (!user.facialTemplate) {
+      return res.status(400).json({ success: false, message: "User has no registered face data" });
     }
 
-    // Compare Density Maps
-    let totalVariance = 0;
-    const anchorChars = ['A', 'Q', 'g', 'w', '0', '9', '+', '/'];
+    let isMatch = false;
+    let distance = 1.0;
 
-    for (let i = 0; i < storedSig.length; i++) {
-      anchorChars.forEach(char => {
-        totalVariance += Math.abs(storedSig[i][char] - liveSig[i][char]);
+    try {
+      const storedEmbedding = JSON.parse(user.facialTemplate);
+      const response = await fetch("http://127.0.0.1:5050/api/face/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          image: biometricData,
+          stored_embedding: storedEmbedding
+        })
       });
-    }
+      
+      const rawText = await response.text();
+      let aiData;
+      try {
+        aiData = JSON.parse(rawText);
+      } catch (parseError) {
+        console.error("AI Service returned non-JSON:", rawText.substring(0, 100));
+        return res.status(500).json({ success: false, message: "Biometric AI service returned invalid response" });
+      }
 
-    const averageVariance = totalVariance / (storedSig.length * anchorChars.length);
-    
-    // Calibrated Threshold: 0.15 (allows 15% structural variance)
-    const isMatch = averageVariance < 0.15;
+      if (!response.ok || !aiData.success) {
+        return res.status(400).json({
+          success: false,
+          message: aiData.message || "Face verification failed"
+        });
+      }
+
+      isMatch = aiData.match;
+      distance = aiData.distance;
+    } catch (err) {
+      console.error("AI Service Error:", err);
+      return res.status(500).json({ success: false, message: "Biometric AI service is offline" });
+    }
 
     if (!isMatch) {
-      console.warn(`[SECURITY] Biometric Mismatch for UID: ${employeeId} (Variance: ${averageVariance.toFixed(4)})`);
+      console.warn(`[SECURITY] Biometric Mismatch for UID: ${employeeId} (Distance: ${distance.toFixed(4)})`);
       user.trustScore = Math.max(0, user.trustScore - 15);
       user.riskLevel = user.trustScore < 40 ? "HIGH" : "MEDIUM";
       user.alerts.push({
         severity: "HIGH",
-        message: `Biometric Handshake Failed (Mismatch Δ: ${averageVariance.toFixed(4)})`,
+        message: `Biometric Handshake Failed (Mismatch Δ: ${distance.toFixed(4)})`,
       });
       await user.save();
 
@@ -340,7 +372,7 @@ const verifyBiometric = async (req, res) => {
         employeeId: user.employeeId,
         message: `Biometric identity mismatch for UID: ${employeeId}`,
         severity: "HIGH",
-        metadata: { variance: averageVariance.toFixed(4), ip: req.ip }
+        metadata: { variance: distance.toFixed(4), ip: req.ip }
       }).save();
 
       return res.status(401).json({ success: false, message: "Biometric Identity Match Failed" });
