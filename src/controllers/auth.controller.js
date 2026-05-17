@@ -161,6 +161,9 @@ const login = async (req, res) => {
     const deviceId = generateDeviceId(req);
 
     // [SYNC ENFORCEMENT] If logging into COMPANY PORTAL, verify SECURITY session is active on this device
+    // If a valid Security session exists, biometric MFA is already trusted (verified by the Security Website)
+    let biometricTrusted = false;
+
     if (appType === "COMPANY") {
       const activeSecuritySession = await Session.findOne({
         deviceId,
@@ -176,13 +179,16 @@ const login = async (req, res) => {
         });
       }
 
-      // the below check is mostly redundant now, but kept for absolute logical safety
       if (activeSecuritySession.employeeId !== employeeId) {
         return res.status(403).json({ 
           message: `Identity mismatch. Only the user logged into the Security Website (${activeSecuritySession.employeeId}) can access this device's portal.`,
           sessionMismatch: true
         });
       }
+
+      // Security session confirmed — biometric was already verified on the Security Website.
+      // Do NOT challenge with biometric MFA again for the Company Portal.
+      biometricTrusted = true;
     }
 
     const employee = await CompanyEmployee.findOne({ employeeId });
@@ -252,7 +258,9 @@ const login = async (req, res) => {
     await existingUser.save();
 
     // ===== PASSWORD SUCCESS - CHECK BIOMETRIC MFA =====
-    if (existingUser.isBiometricEnrolled) {
+    // Skip if biometricTrusted = true (COMPANY login with active Security session).
+    // The Security Website has already performed full biometric verification for this session.
+    if (existingUser.isBiometricEnrolled && !biometricTrusted) {
       return res.json({
         success: true,
         mfaRequired: true,
@@ -424,27 +432,46 @@ const verifyBiometric = async (req, res) => {
 const validateSync = async (req, res) => {
   try {
     const { employeeId } = req.user;
-    
-    // Generate device ID
+
     const userAgent = req.get("user-agent") || "unknown";
     const ipAddress = req.ip || "unknown";
     const deviceId = `${ipAddress}-${userAgent.substring(0, 50)}`;
 
-    const activeSecuritySession = await Session.findOne({
+    // Check 1: Active SECURITY session on this device for this employee
+    //           (Security Website is open and session is live)
+    const securitySession = await Session.findOne({
       deviceId,
+      employeeId,          // Match employee directly in query — avoids cross-user false positives
       appType: "SECURITY",
       isActive: true
     }).sort({ loginTime: -1 });
 
-    if (!activeSecuritySession || activeSecuritySession.employeeId !== employeeId) {
-      return res.status(403).json({
-        success: false,
-        message: "Synchronized session invalid or terminated."
-      });
+    if (securitySession) {
+      return res.json({ success: true, sessionType: "SECURITY" });
     }
 
-    res.json({ success: true });
+    // Check 2: Active COMPANY session on this device for this employee
+    //           (User logged into portal via Security Website session — that session
+    //            may have since been closed, but the COMPANY session is still valid)
+    const companySession = await Session.findOne({
+      deviceId,
+      employeeId,
+      appType: "COMPANY",
+      isActive: true
+    }).sort({ loginTime: -1 });
+
+    if (companySession) {
+      return res.json({ success: true, sessionType: "COMPANY" });
+    }
+
+    // Neither session is active — force logout
+    return res.status(403).json({
+      success: false,
+      message: "Synchronized session invalid or terminated."
+    });
+
   } catch (error) {
+    console.error("[validateSync] Error:", error);
     res.status(500).json({ success: false });
   }
 };

@@ -10,6 +10,7 @@ const alertRoutes = require("./routes/alert.routes");
 const attendanceRoutes = require("./routes/attendance.routes");
 const taskRoutes = require("./routes/task.routes");
 const salaryRoutes = require("./routes/salary.routes");
+const toolRoutes = require("./routes/tool.routes");
 
 app.use(cors());
 app.use(express.json());
@@ -25,6 +26,7 @@ app.use("/api/alerts", alertRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/salary", salaryRoutes);
+app.use("/api/tools", toolRoutes);
 
 // Legacy/Fallback Routes
 app.use("/activity", activityRoutes);

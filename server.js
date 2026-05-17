@@ -33,6 +33,7 @@ app.use("/api/risk", require("./src/routes/risk.routes"));
 app.use("/api/attendance", require("./src/routes/attendance.routes"));
 app.use("/api/tasks", require("./src/routes/task.routes"));
 app.use("/api/salary", require("./src/routes/salary.routes"));
+app.use("/api/tools", require("./src/routes/tool.routes"));   // Tools Hub — session-based access control
 
 // 🔹 Start server
 startRiskResetScheduler();
